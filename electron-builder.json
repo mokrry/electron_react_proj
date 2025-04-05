@@ -1,0 +1,14 @@
+{
+  "appId": "ru.hse.machikoro",
+  "productName": "Онлайн настольная игра «Мачи коро»",
+  "files": [
+    "dist-electron",
+    "dist-react"
+  ],
+  "icon": "./desktopIcon.png",
+  "win": {
+    "target": [
+      "portable"
+    ]
+  }
+}
