@@ -5,10 +5,14 @@ interface LogoutPageProps {
 }
 
 const LogoutPage: React.FC<LogoutPageProps> = ({ onNavigate }) => {
+    const handleQuit = () => {
+        // Вызываем функцию для завершения работы приложения
+
+        window.electron.quitApp();
+    };
+    handleQuit();
     return (
         <div>
-            <h1>Error 404</h1>
-            <button onClick={() => onNavigate('menu')}>Главное меню</button>
         </div>
     );
 };

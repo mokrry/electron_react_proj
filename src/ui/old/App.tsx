@@ -55,6 +55,9 @@ const App: React.FC = () => {
         }
     };
 
+    // @ts-ignore
+    //window.electron.getUsers();
+
     return <div>{renderPage()}</div>;
 };
 

@@ -1,6 +1,8 @@
 {
   "appId": "ru.hse.machikoro",
   "productName": "Онлайн настольная игра «Мачи коро»",
+  "extraResources": ["dist-electron/preload.cjs"],
+
   "files": [
     "dist-electron",
     "dist-react"
