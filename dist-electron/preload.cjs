@@ -4,5 +4,15 @@ const electron_1 = require("electron");
 electron_1.contextBridge.exposeInMainWorld("electron", {
     subscribePlayers: (callback) => callback({}),
     getUsers: () => console.log('users'),
-    quitApp: () => electron_1.ipcRenderer.send('quit-app')
+    quitApp: () => electron_1.ipcRenderer.send('quit-app'),
+    createRoom: (roomName) => {
+        if (!roomName.trim())
+            throw new Error('Room name cannot be empty');
+        electron_1.ipcRenderer.send('create-room', roomName);
+    },
+    onRoomDiscovered: (callback) => {
+        const listener = (_event, room) => callback(room);
+        electron_1.ipcRenderer.on('room-discovered', listener);
+        return () => electron_1.ipcRenderer.removeListener('room-discovered', listener);
+    }
 });

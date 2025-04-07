@@ -3,7 +3,6 @@ import MainMenuPage from './components/MainMenuPage.tsx';
 import GamePage from './components/GamePage.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import ProfilePage from './components/ProfilePage.tsx';
-import LogoutPage from './components/LogoutPage.tsx';
 import { AppState } from './types';
 import './App.css';
  
@@ -48,15 +47,12 @@ const App: React.FC = () => {
                         onNavigate={navigate}
                     />
                 );
-            case 'logout':
-                return <LogoutPage onNavigate={navigate} />;
             default:
                 return null;
         }
     };
 
-    // @ts-ignore
-    //window.electron.getUsers();
+    window.electron.getUsers();
 
     return <div>{renderPage()}</div>;
 };

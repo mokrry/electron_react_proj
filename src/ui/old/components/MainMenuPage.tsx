@@ -13,7 +13,7 @@ const MainMenuPage: React.FC<MainMenuPageProps> = ({ onNavigate }) => {
             <br />
             <button onClick={() => onNavigate('profile')}>Профиль</button>
             <br />
-            <button onClick={() => onNavigate('logout')}>Выйти</button>
+            <button onClick={() => window.electron.quitApp()}>Выйти</button>
         </div>
     );
 };
