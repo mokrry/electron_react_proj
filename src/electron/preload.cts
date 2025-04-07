@@ -16,5 +16,12 @@ contextBridge.exposeInMainWorld("electron", {
         ipcRenderer.on('room-discovered', listener);
 
         return () => ipcRenderer.removeListener('room-discovered', listener);
-    }
+    },
+
+    updateNickname: (nickname: string) => {
+        if (!nickname.trim()) throw new Error('Nickname cannot be empty');
+        ipcRenderer.send('update-nickname', nickname);
+    },
+
+    getNickname: () => ipcRenderer.invoke('get-nickname')
 });

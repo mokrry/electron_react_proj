@@ -89,3 +89,14 @@ app.on("ready", () => {
     }
     startDiscovery();
 });
+ipcMain.on('update-nickname', (_event, nickname) => {
+    console.log('A request to change the nickname was received:', nickname);
+    // Здесь можно сохранить новый ник, например, в файл настроек или базу данных
+});
+// Обработчик запроса ника
+ipcMain.handle('get-nickname', () => {
+    // Здесь можно реализовать логику получения ника из базы данных, файла или другого хранилища.
+    // В данном примере возвращается тестовый ник.
+    console.log('The request for a nickname has been received');
+    return "TestNickname";
+});

@@ -42,7 +42,6 @@ const App: React.FC = () => {
             case 'profile':
                 return (
                     <ProfilePage
-                        nickname={state.nickname}
                         onNicknameChange={handleNicknameChange}
                         onNavigate={navigate}
                     />
@@ -51,8 +50,6 @@ const App: React.FC = () => {
                 return null;
         }
     };
-
-    window.electron.getUsers();
 
     return <div>{renderPage()}</div>;
 };

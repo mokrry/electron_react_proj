@@ -13,6 +13,8 @@ export interface ElectronAPI {
     quitApp: () => void;
     createRoom: (roomName: string) => void;
     onRoomDiscovered: (callback: (room: { name: string; address: string }) => void) => () => void;
+    updateNickname: (nickname: string) => void;
+    getNickname: () => Promise<string>;
 }
 
 // Расширение глобального интерфейса Window для добавления свойства electron
