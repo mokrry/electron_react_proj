@@ -2,86 +2,120 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
-import dgram from 'dgram';
+import fs from 'fs';
+import { randomUUID } from 'crypto';
 
-// Конфигурация UDP
-const UDP_CONFIG = {
-    PORT: 41234,
-    ADDRESS: '255.255.255.255',
-    INTERVAL: 5000
-};
+const USER_DATA_PATH = path.join(app.getPath('userData'), 'user_preferences.json');
+const PLAYER_IDS_PATH = path.join(app.getPath('userData'), 'player_ids.json');
 
-const server = dgram.createSocket('udp4');
-let mainWindow: BrowserWindow | null = null;
-let broadcastInterval: NodeJS.Timeout | null = null;
+// Хранилище комнат
+const activeRooms = new Map<string, {
+    hostId: string;
+    roomName: string;
+    players: string[];
+}>();
 
-// IPC-обработчики
+// Хранилище ID игроков
+let playerIds: Record<string, string> = {};
+
+// Загрузка сохранённых ID игроков
+function loadPlayerIds() {
+    try {
+        if (fs.existsSync(PLAYER_IDS_PATH)) {
+            playerIds = JSON.parse(fs.readFileSync(PLAYER_IDS_PATH, 'utf-8'));
+        }
+    } catch (error) {
+        console.error('Error loading player IDs:', error);
+    }
+}
+
+// Сохранение ID игроков
+function savePlayerIds() {
+    try {
+        fs.writeFileSync(PLAYER_IDS_PATH, JSON.stringify(playerIds), 'utf-8');
+    } catch (error) {
+        console.error('Error saving player IDs:', error);
+    }
+}
+
+// Генерация ID игрока
+function generatePlayerId(): string {
+    return `plr_${randomUUID().replace(/-/g, '').substring(0, 12)}`;
+}
+
+// Получение ID игрока (создаёт новый, если нужно)
+function getPlayerId(senderId: string): string {
+    if (!playerIds[senderId]) {
+        playerIds[senderId] = generatePlayerId();
+        savePlayerIds();
+    }
+    return playerIds[senderId];
+}
+
+// Генерация ключа комнаты в формате ABC-123
+function generateRoomKey(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let key = '';
+    for (let i = 0; i < 6; i++) {
+        key += chars[Math.floor(Math.random() * chars.length)];
+        if (i === 2) key += '-';
+    }
+    return key;
+}
+
+// Работа с комнатами
+ipcMain.handle('create-room', (event, roomName: string) => {
+    const roomKey = generateRoomKey();
+    const playerId = getPlayerId(event.sender.id.toString());
+
+    activeRooms.set(roomKey, {
+        hostId: playerId,
+        roomName,
+        players: [playerId]
+    });
+
+    // Автоудаление комнаты через 4 часа
+    setTimeout(() => activeRooms.delete(roomKey), 4 * 60 * 60 * 1000);
+    return { roomKey, roomName };
+});
+
+ipcMain.handle('join-room', (event, roomKey: string) => {
+    const room = activeRooms.get(roomKey);
+    if (!room) return { success: false, error: 'Комната не найдена' };
+
+    const playerId = getPlayerId(event.sender.id.toString());
+
+    if (!room.players.includes(playerId)) {
+        room.players.push(playerId);
+    }
+
+    return {
+        success: true,
+        roomName: room.roomName,
+        playersCount: room.players.length
+    };
+});
+
+ipcMain.handle('get-active-rooms', () => {
+    return Array.from(activeRooms.entries()).map(([roomKey, room]) => ({
+        roomKey,
+        roomName: room.roomName,
+        playersCount: room.players.length
+    }));
+});
+
 // Завершение приложения
 ipcMain.on('quit-app', () => {
-    server.on('error', (error: Error) => {
-        console.error('Socket error:', error);
-    });
-
-    try {
-        server.close(() => {
-            app.quit();
-        });
-    } catch (err) {
-        console.error('Error closing server:', err);
-        app.quit();
-    }
+    activeRooms.clear();
+    app.quit();
 });
 
 
-// Создание комнаты с именем
-ipcMain.on('create-room', (_, roomName) => {
-    startBroadcasting(roomName);
-});
+let mainWindow: BrowserWindow | null = null;
 
-// UDP Функции
-// Рассылка JSON-сообщений о комнатах в сеть каждые 5 секунд
-function startBroadcasting(roomName: string) {
-    const message = JSON.stringify({
-        type: 'machi-koro-room',
-        name: roomName,
-        timestamp: Date.now()
-    });
-
-    if (broadcastInterval) clearInterval(broadcastInterval);
-
-    broadcastInterval = setInterval(() => {
-        server.send(message, UDP_CONFIG.PORT, UDP_CONFIG.ADDRESS, (err) =>  {
-            if (err) console.error('Broadcast error:', err);
-        });
-    }, UDP_CONFIG.INTERVAL);
-}
-
-// Обнаружение комнат (принимает UDP-сообщения от др. игроков; при получении сообщения типа 'machi-koro-room' отправляет
-//                                       данные во фронтенд.Дополняет сообщение IP-адресом отправителя (rinfo.address).)
-function startDiscovery() {
-    server.on('message', (msg, rinfo) => {
-        try {
-            const data = JSON.parse(msg.toString());
-            if (data.type === 'machi-koro-room' && mainWindow) {
-                mainWindow.webContents.send('room-discovered', {
-                    ...data,
-                    // IP отправителя
-                    address: rinfo.address
-                });
-            }
-        } catch (e) {
-            console.error('Parse error:', e);
-        }
-    });
-
-    server.bind(UDP_CONFIG.PORT, () => {
-        server.setBroadcast(true);
-        console.log(`Discovery listening on ${UDP_CONFIG.PORT}`);
-    });
-}
-
-// Инициализация
 app.on("ready", () => {
+    loadPlayerIds();
+
     mainWindow = new BrowserWindow({
         webPreferences: {
             preload: getPreloadPath(),
@@ -95,20 +129,51 @@ app.on("ready", () => {
     } else {
         mainWindow.loadFile(path.join(app.getAppPath(), '/dist-react/index.html'));
     }
-
-    startDiscovery();
 });
 
-ipcMain.on('update-nickname', (_event, nickname: string) => {
-    console.log('A request to change the nickname was received:', nickname);
-    // Здесь можно сохранить новый ник, например, в файл настроек или базу данных
+
+// Работа с никами
+
+interface UserPreferences {
+    nickname: string;
+}
+
+const userPreferences: UserPreferences = loadPreferences();
+
+function loadPreferences(): UserPreferences {
+    try {
+        if (fs.existsSync(USER_DATA_PATH)) {
+            return JSON.parse(fs.readFileSync(USER_DATA_PATH, 'utf-8'));
+        }
+    } catch (error) {
+        console.error('Error loading preferences:', error);
+    }
+    return { nickname: 'Player' + Math.floor(Math.random() * 1000) };
+}
+
+function savePreferences() {
+    try {
+        fs.writeFileSync(USER_DATA_PATH, JSON.stringify(userPreferences), 'utf-8');
+    } catch (error) {
+        console.error('Error saving preferences:', error);
+    }
+}
+
+const MAX_NICKNAME_LENGTH = 20;
+
+//  Обновление ника с проверкой длины
+ipcMain.handle('update-nickname', (_event, nickname: string) => {
+    if (nickname.trim().length > 0 && nickname.trim().length <= MAX_NICKNAME_LENGTH) {
+        userPreferences.nickname = nickname.trim();
+        savePreferences();
+        return { success: true, nickname: nickname };
+    }
+    return {
+        success: false,
+        error: `Nickname length must be from 1 to ${MAX_NICKNAME_LENGTH} characters`
+    }
 });
 
-// Обработчик запроса ника
 ipcMain.handle('get-nickname', () => {
-    // Здесь можно реализовать логику получения ника из базы данных, файла или другого хранилища.
-    // В данном примере возвращается тестовый ник.
-    console.log('The request for a nickname has been received');
-    return "TestNickname";
+    return userPreferences.nickname;
 });
-
