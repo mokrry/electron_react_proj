@@ -1,27 +1,31 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld("electron", {
-    subscribePlayers: (callback: (users: unknown) => void) => callback({}),
-    getUsers: () => console.log('users'),
-
-    quitApp: () => ipcRenderer.send('quit-app'),
-
+    // Возвращает Promise<{roomKey, roomName}>
     createRoom: (roomName: string) => {
         if (!roomName.trim()) throw new Error('Room name cannot be empty');
-        ipcRenderer.send('create-room', roomName);
+        return ipcRenderer.invoke('create-room', roomName);
     },
 
-    onRoomDiscovered: (callback: (room: {name: string, address: string}) => void) => {
-        const listener = (_event: unknown, room: {name: string, address: string}) => callback(room);
-        ipcRenderer.on('room-discovered', listener);
-
-        return () => ipcRenderer.removeListener('room-discovered', listener);
+    // Возвращает Promise<{success, roomName, playersCount}>
+    joinRoom: (roomKey: string) => {
+        return ipcRenderer.invoke('join-room', roomKey);
     },
 
+    // Возвращает Promise<Array<{roomKey, roomName, playersCount}>>
+    getActiveRooms: () => {
+        return ipcRenderer.invoke('get-active-rooms');
+    },
+
+    // Возвращает Promise<{success, nickname}>
     updateNickname: (nickname: string) => {
-        if (!nickname.trim()) throw new Error('Nickname cannot be empty');
-        ipcRenderer.send('update-nickname', nickname);
+        return ipcRenderer.invoke('update-nickname', nickname);
     },
 
-    getNickname: () => ipcRenderer.invoke('get-nickname')
+    // Возвращает Promise<string>
+    getNickname: () => {
+        return ipcRenderer.invoke('get-nickname');
+    },
+
+    quitApp: () => ipcRenderer.send('quit-app')
 });
